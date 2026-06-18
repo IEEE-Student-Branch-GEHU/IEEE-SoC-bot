@@ -1,23 +1,23 @@
 # IEEESoc Bot - Automated Contribution Tracker
 
-An event-driven contribution tracking system, anti-cheat engine, and mentorship auditor designed for Graphic Era Hill University IEEE Student Branch's fellowship programs. The system automates pull request complexity scoring, co-authored points split, mentor SLA tracking, and presents a real-time leaderboard dashboard.
+An event-driven contribution tracking system, anti-cheat engine, and mentorship auditor designed for the Graphic Era Hill University IEEE Student Branch fellowship programs. The system automates pull request complexity scoring, co-authored points split, mentor SLA tracking, and renders a real-time leaderboard dashboard.
 
 ---
 
-## 🚀 Key Features
+## Key Features
 
-*   **Decoupled Webhook Ingestion**: Lightweight Express.js intake server verifying GitHub HMAC signatures and deduplicating deliveries via Redis cache in under 500ms (within GitHub's 3-second SLA).
-*   **Asynchronous Processing Pipeline**: Leverages BullMQ + Redis background workers to serialize webhook processing and prevent system overhead.
+*   **Decoupled Webhook Ingest**: A lightweight Express.js intake server verifying GitHub HMAC signatures and deduplicating deliveries via Redis cache within 500ms, adhering to GitHub's 3-second SLA.
+*   **Asynchronous Processing Pipeline**: Utilizes BullMQ + Redis background workers to serialize webhook processing and prevent server blocking during high-volume periods.
 *   **Dual Gamification Engine**:
-    *   *Fellows*: Points allocated for merged contributions based on difficulty labels (`soc-easy` = 10, `soc-medium` = 30, `soc-hard` = 60).
+    *   *Fellows*: Points allocated for merged contributions based on difficulty labels (soc-easy = 10, soc-medium = 30, soc-hard = 60).
     *   *Mentors*: SLA points awarded for fast turnaround on reviews (+15 points under 24 hours, +5 points under 48 hours).
 *   **Anti-Cheat Protection**: Auto-suspends points for unauthorized self-merging and fellow-triggered post-merge label tampering. Flags low-effort contributions.
-*   **Sandbox Simulation Mode**: Seamless fallback to fully functional mock states (using in-memory MongoDB replica, `ioredis-mock`, and virtual queue processors) if external configuration credentials are absent.
-*   **Premium Control Panel UI**: Beautiful `slate-950` styled dark-mode React client incorporating visual leaderboards, interactive webhook simulators, real-time pipeline log monitors, and administrative resync controls.
+*   **Sandbox Simulation Mode**: Seamless fallback to fully functional mock states (using in-memory MongoDB replica, ioredis-mock, and virtual queue processors) if external configuration credentials are absent.
+*   **Control Panel UI**: Professional dark-mode React client incorporating visual leaderboards, interactive webhook simulators, real-time pipeline log monitors, and administrative resync controls.
 
 ---
 
-## 🧱 Architecture Diagram
+## Architecture Diagram
 
 ```mermaid
 graph TD
@@ -33,7 +33,7 @@ graph TD
 
 ---
 
-## 📁 Repository Structure
+## Repository Structure
 
 ```
 ├── .env.example              # Environment variables template
@@ -65,12 +65,12 @@ graph TD
 
 ---
 
-## 🛠️ Getting Started & Installation
+## Getting Started & Installation
 
 ### 1. Prerequisites
-*   [Node.js](https://nodejs.org/) (v18.0.0 or higher)
-*   [MongoDB](https://www.mongodb.com/) (Optional - falls back to `mongodb-memory-server` if omitted)
-*   [Redis](https://redis.io/) (Optional - falls back to `ioredis-mock` thread execution if omitted)
+*   Node.js (v18.0.0 or higher)
+*   MongoDB (Optional - falls back to mongodb-memory-server if omitted)
+*   Redis (Optional - falls back to ioredis-mock thread execution if omitted)
 
 ### 2. Install Dependencies
 ```bash
@@ -78,7 +78,7 @@ npm install
 ```
 
 ### 3. Environment Setup
-Create a `.env` file in the root of the project. You can copy the template:
+Create a `.env` file in the root of the project by copying the provided template:
 ```bash
 cp .env.example .env
 ```
@@ -99,31 +99,31 @@ Run the combined development server (starts the Express backend alongside the Vi
 ```bash
 npm run dev
 ```
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Open http://localhost:3000 in your browser.
 
 ---
 
-## 🎯 Scoring & Anti-Cheat Rules
+## Scoring & Anti-Cheat Rules
 
 ### 1. Points Allocation
-*   **`soc-easy` (10 pts)**: Typo corrections, README changes, minor CSS styling, or simple comments.
-*   **`soc-medium` (30 pts)**: Standard features, logical fixes, unit testing, schema migrations.
-*   **`soc-hard` (60 pts)**: Architecture shifts, queries optimization, core security patches, smart contracts.
-*   **Co-authors**: Recognized co-authors in commit messages (`Co-authored-by: user <email>`) receive a **50% points bonus** (rounded) while the main author gets 100%.
+*   **soc-easy (10 pts)**: Typo corrections, README changes, minor CSS styling, or simple comments.
+*   **soc-medium (30 pts)**: Standard features, logical fixes, unit testing, schema migrations.
+*   **soc-hard (60 pts)**: Architecture shifts, queries optimization, core security patches, smart contracts.
+*   **Co-authors**: Recognized co-authors in commit messages (Co-authored-by: user <email>) receive a 50% points bonus (rounded) while the main author gets 100%.
 
 ### 2. Cheat Mitigations
-*   **Author Self-Merge**: Direct merges by authors receive **0 points** and are flagged as `suspicious: true` in the DB.
-*   **Post-Merge Labeling**: If a PR is merged unlabeled, it receives **0 points**. Re-labeling post-merge updates scores *only* if performed by a Mentor or Admin. Fellow tampering is blocked.
+*   **Author Self-Merge**: Direct merges by authors receive 0 points and are flagged as suspicious in the database.
+*   **Post-Merge Labeling**: If a PR is merged unlabeled, it receives 0 points. Re-labeling post-merge updates scores only if performed by a Mentor or Admin. Fellow tampering is blocked.
 *   **Low-Effort PRs**: PRs marked medium or hard with less than 5 total modified lines are flagged for human review.
 
 ---
 
-## 🧪 Testing with the Webhook Simulator
+## Testing with the Webhook Simulator
 
-When running in **Sandbox/Preview Mode** on `localhost:3000`, the Control Panel enables complete testing of the system without setting up external webhooks:
+When running in Sandbox/Preview Mode on localhost:3000, the Control Panel enables complete testing of the system without setting up external webhooks:
 1.  **Enroll Fellows**: Fill out the enrollment form to pre-register developer profiles.
-2.  **Fire Webhooks**: Use the **Webhook Simulator** panel to trigger simulated event payloads (PR opened, PR merged, self-merges, post-merge labels, fast mentor review).
-3.  **Monitor Pipelines**: Watch the **Pipeline Monitor** tabs:
-    *   *Redis Queues* will show job statuses moving from `pending` -> `processing` -> `completed` in real-time.
+2.  **Fire Webhooks**: Use the Webhook Simulator panel to trigger simulated event payloads (PR opened, PR merged, self-merges, post-merge labels, fast mentor review).
+3.  **Monitor Pipelines**: Watch the Pipeline Monitor tabs:
+    *   *Redis Queues* will show job statuses moving from pending -> processing -> completed in real-time.
     *   *Bot Outputs* will print simulated comments posted, Discord notifications dispatched, and mock API calls.
-4.  **Admin Resync**: Click **Authenticate JWT Token** (using admin / ieeesoc2026) to log in as an administrator, then select a repository to run manual historical alignment audits.
+4.  **Admin Resync**: Authenticate using administrative credentials (username: admin, password: ieeesoc2026) to log in as an administrator, then select a repository to run manual historical alignment audits.
