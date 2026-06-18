@@ -1,0 +1,6 @@
+{
+  "name": "IEEEsoc Bot Automation Engine",
+  "description": "Event-driven open-source fellowship program tracker. Automates contribution calculations, anti-cheat detection, mentor reviews, and leaderboards.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
