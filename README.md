@@ -1,3 +1,12 @@
+---
+title: IEEE-SoC-bot
+emoji: 🤖
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+---
+
 # IEEESoc Bot - Automated Contribution Tracker
 
 An event-driven contribution tracking system, anti-cheat engine, and mentorship auditor designed for the Graphic Era Hill University IEEE Student Branch fellowship programs. The system automates pull request complexity scoring, co-authored points split, mentor SLA tracking, and renders a real-time leaderboard dashboard.
