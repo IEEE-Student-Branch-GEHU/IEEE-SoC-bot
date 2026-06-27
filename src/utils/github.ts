@@ -40,6 +40,7 @@ function getGitHubApp(): App | null {
       githubAppInstance = new App({
         appId: appId,
         privateKey: privateKey,
+        Octokit: Octokit,
       });
       console.log("🤖 GitHub App Octokit instance initialized successfully.");
     } catch (err: any) {
