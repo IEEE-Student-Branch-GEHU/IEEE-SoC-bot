@@ -29,6 +29,14 @@ async function startServer() {
   );
   app.use(express.urlencoded({ extended: true }));
 
+  // CORS Middleware to allow cross-origin requests from the Vercel web portal
+  app.use((_req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+    res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    next();
+  });
+
   // 3. API Endpoints
   app.use("/api/bot", webhookRouter);
   app.use("/api", leaderboardRouter);
