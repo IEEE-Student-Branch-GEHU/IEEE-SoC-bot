@@ -17,7 +17,7 @@
     "@octokit/rest": "^22.0.1",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
-    "bullmq": "^5.78.1",
+    "bullmq": "^5.81.2",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "ioredis": "^5.11.1",
