@@ -171,6 +171,124 @@ export async function getPullRequestCommits(
 }
 
 /**
+ * Small async delay to pace GitHub API calls and avoid rate-limit bursts
+ */
+export async function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export interface IBackfillPull {
+  id: number;
+  number: number;
+  title: string;
+  html_url: string;
+  state: string;
+  merged_at: string | null;
+  created_at: string;
+  body: string | null;
+  labels: any[];
+  draft: boolean;
+  user: { login: string; id: number; avatar_url?: string } | null;
+  merged_by: { login: string } | null;
+}
+
+interface IListMergedPullsOptions {
+  since?: string;
+  perPage?: number;
+  maxPages?: number;
+  pageDelayMs?: number;
+}
+
+/**
+ * Enumerate historically merged pull requests for a repository via the GitHub REST API.
+ * Paginates through closed PRs, filters to merged ones, and optionally only includes
+ * PRs merged on/after the given ISO date (`since` cutoff).
+ */
+export async function listMergedPullRequests(
+  installationId: string,
+  owner: string,
+  repo: string,
+  options: IListMergedPullsOptions = {}
+): Promise<IBackfillPull[]> {
+  logGitHubAction("api_call", `${owner}/${repo}`, "Fetch merged PR history for backfill");
+
+  const octokit = await getInstallationOctokit(installationId);
+  if (!octokit) {
+    console.log("ℹ️ Backfill: No GitHub credentials available. Skipping live history fetch.");
+    return [];
+  }
+
+  const perPage = options.perPage || 100;
+  const maxPages = options.maxPages || 25;
+  const pageDelayMs = options.pageDelayMs ?? 500;
+  const sinceDate = options.since ? new Date(options.since) : null;
+
+  const mergedPulls: IBackfillPull[] = [];
+
+  for (let page = 1; page <= maxPages; page++) {
+    const { data } = await octokit.pulls.list({
+      owner,
+      repo,
+      state: "closed",
+      per_page: perPage,
+      page,
+      sort: "updated",
+      direction: "desc",
+    });
+
+    for (const pr of data as any[]) {
+      if (!pr.merged_at) continue;
+
+      // Cutoff filter: skip PRs merged before the configured `since` date
+      if (sinceDate && new Date(pr.merged_at) < sinceDate) {
+        continue;
+      }
+
+      mergedPulls.push(pr as IBackfillPull);
+    }
+
+    if (data.length < perPage) break;
+    if (pageDelayMs > 0) await sleep(pageDelayMs);
+  }
+
+  console.log(`📚 Backfill: Found ${mergedPulls.length} merged PRs for ${owner}/${repo}.`);
+  return mergedPulls;
+}
+
+/**
+ * Retrieve review history for a pull request (used to backfill mentor turnaround points).
+ */
+export async function listPullRequestReviews(
+  installationId: string,
+  owner: string,
+  repo: string,
+  pullNumber: number
+): Promise<Array<{ user: { login: string }; state: string; submitted_at: string }>> {
+  logGitHubAction("api_call", `${owner}/${repo}#${pullNumber}`, "Fetch review history");
+
+  const octokit = await getInstallationOctokit(installationId);
+  if (!octokit) {
+    return [];
+  }
+
+  try {
+    const { data } = await octokit.pulls.listReviews({
+      owner,
+      repo,
+      pull_number: pullNumber,
+    });
+    return data.map((r: any) => ({
+      user: { login: r.user?.login || "unknown" },
+      state: r.state || "COMMENTED",
+      submitted_at: r.submitted_at || new Date().toISOString(),
+    }));
+  } catch (err: any) {
+    console.warn(`❌ Failed to fetch reviews for ${owner}/${repo}#${pullNumber}:`, err.message);
+    return [];
+  }
+}
+
+/**
  * Trigger alerts to Discord when actions (good or bad) happen
  */
 export async function postDiscordAlert(content: string, type: "success" | "warning" | "info" = "info"): Promise<void> {
