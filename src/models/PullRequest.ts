@@ -18,6 +18,8 @@ export interface IPullRequest extends Document {
   difficultyLabel: "soc-easy" | "soc-medium" | "soc-hard" | "unlabeled";
   pointsAwarded: number;
   suspicious: boolean;
+  source: "webhook" | "backfill";
+  backfilledAt?: Date;
   createdAt: Date;
   closedAt?: Date;
   mergedAt?: Date;
@@ -45,6 +47,8 @@ const PullRequestSchema = new Schema<IPullRequest>({
   },
   pointsAwarded: { type: Number, default: 0 },
   suspicious: { type: Boolean, default: false },
+  source: { type: String, enum: ["webhook", "backfill"], default: "webhook" },
+  backfilledAt: { type: Date },
   createdAt: { type: Date, required: true },
   closedAt: { type: Date },
   mergedAt: { type: Date },

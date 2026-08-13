@@ -4,6 +4,7 @@ import User from "../models/User";
 import Repository from "../models/Repository";
 import PullRequest from "../models/PullRequest";
 import { getInstallationOctokit } from "../utils/github";
+import { backfillRepository, IBackfillReport } from "../services/backfill";
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || "super_secret_jwt_key_for_admin_resync";
@@ -228,6 +229,86 @@ router.post("/repositories/:repoId/resync", verifyAdminJWT, async (req: IAuthReq
     });
   } catch (err: any) {
     console.error("❌ Resync Error:", err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/admin/backfill
+ * Backfill historically merged pull requests (merged before the bot was installed,
+ * or otherwise missed by webhooks) so the leaderboard reflects full contribution history.
+ *
+ * Body:
+ *  - repoId?: string        - Restrict backfill to a single repository (by repoId).
+ *                             Omit to backfill all active repositories.
+ *  - since?: string         - Only backfill PRs merged on/after this ISO date (cutoff).
+ *  - backfillReviews?: bool - Also award mentor review turnaround points from history. Default: false.
+ */
+router.post("/backfill", verifyAdminJWT, async (req: IAuthRequest, res: Response): Promise<void> => {
+  const { repoId, since, backfillReviews, perPage, maxPages } = req.body || {};
+
+  try {
+    let repos: any[] = [];
+    if (repoId) {
+      const repoDoc = await Repository.findOne({ repoId });
+      if (!repoDoc) {
+        res.status(404).json({ success: false, error: "Repository not found." });
+        return;
+      }
+      repos = [repoDoc];
+    } else {
+      repos = await Repository.find({ isActive: true });
+    }
+
+    if (repos.length === 0) {
+      res.json({
+        success: true,
+        message: "Backfill completed. No active repositories to process.",
+        summary: { repositories: 0, found: 0, newlyScored: 0, pointsAwarded: 0 },
+        details: [],
+      });
+      return;
+    }
+
+    console.log(`🔁 Admin Backfill triggered by @${req.user?.username || "unknown"}. Repositories: ${repos.length}, since: ${since || "all history"}`);
+
+    const reports: IBackfillReport[] = [];
+    const allDetails: string[] = [];
+    let totalFound = 0;
+    let totalNewlyScored = 0;
+    let totalPoints = 0;
+    let totalFailed = 0;
+
+    for (const repoDoc of repos) {
+      const report = await backfillRepository(repoDoc, {
+        since,
+        backfillReviews: !!backfillReviews,
+        perPage: perPage ? parseInt(perPage) : undefined,
+        maxPages: maxPages ? parseInt(maxPages) : undefined,
+      });
+      reports.push(report);
+      totalFound += report.found;
+      totalNewlyScored += report.newlyScored;
+      totalPoints += report.pointsAwarded + report.coAuthorPointsAwarded;
+      totalFailed += report.failed;
+      allDetails.push(`[${report.repositoryName}] ${report.details.join(" ")}`);
+    }
+
+    res.json({
+      success: true,
+      message: "Historical PR backfill completed successfully.",
+      summary: {
+        repositories: repos.length,
+        found: totalFound,
+        newlyScored: totalNewlyScored,
+        pointsAwarded: totalPoints,
+        failed: totalFailed,
+      },
+      reports,
+      details: allDetails,
+    });
+  } catch (err: any) {
+    console.error("❌ Backfill Error:", err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });

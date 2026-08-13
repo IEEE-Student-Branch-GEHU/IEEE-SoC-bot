@@ -1,7 +1,9 @@
 import User from "../models/User";
 import Repository from "../models/Repository";
 import PullRequest, { IReview } from "../models/PullRequest";
-import { postGitHubPRComment, getPullRequestFilesCount, getPullRequestCommits, postDiscordAlert } from "../utils/github";
+import { postGitHubPRComment, postDiscordAlert } from "../utils/github";
+import { inferTrackFromName, getDifficultyFromLabels, getPointsForLabel } from "../utils/labels";
+import { awardPointsForMergedPR } from "../services/scoring";
 import { Worker as BullWorker } from "bullmq";
 
 /**
@@ -141,107 +143,32 @@ async function handlePullRequestEvent(action: string, payload: any) {
 
     console.log(`🎉 [PR Merged] Awarding points for Pull Request #${prPayload.number}`);
 
-    let isSuspicious = false;
-    let pointsAwarded = 0;
     const mergerUsername = prPayload.merged_by?.login || senderLogin;
 
-    // A. Self-Merge Check
-    if (mergerUsername === authorDoc.username) {
-      isSuspicious = true;
-      pointsAwarded = 0;
-
-      const warningComment = `⚠️ **Anti-Cheat Warning** @${authorDoc.username}: You self-merged your own Pull Request without an independent mentor approval review. 0 points have been awarded and this event has been flagged.`;
-      await postGitHubPRComment(installationId, owner, repoName, prPayload.number, warningComment);
-      await postDiscordAlert(
-        `🚨 **Suspicious Activity Flagged**\n@${authorDoc.username} self-merged their own Pull Request (**PR #${prPayload.number}**). Awarded 0 points.`,
-        "warning"
-      );
-    } else {
-      // Calculate normal award points based on label
-      const basePoints = getPointsForLabel(activeDifficultyLabel);
-      pointsAwarded = basePoints;
-
-      // B. Low effort check (Medium or Hard difficulty but < 5 changes lines)
-      const lineChanges = await getPullRequestFilesCount(installationId, owner, repoName, prPayload.number);
-      const totalDiffCount = lineChanges.additions + lineChanges.deletions;
-      
-      let effortNote = "";
-      if ((activeDifficultyLabel === "soc-medium" || activeDifficultyLabel === "soc-hard") && totalDiffCount < 5) {
-        effortNote = `\n⚠️ *Caution: Labeled ${activeDifficultyLabel} but diff has only ${totalDiffCount} line changes.*`;
-        // Do not block points but flag inside database for audit
-        isSuspicious = true; // flagged for investigation
-      }
-
-      // C. Parse Commits for Co-Authors
-      const commits = await getPullRequestCommits(installationId, owner, repoName, prPayload.number);
-      const coAuthors: string[] = [];
-      const coAuthorDocs: any[] = [];
-
-      for (const commit of commits) {
-        const matches = [...commit.message.matchAll(/Co-authored-by:\s*([^\s<]+)\s*<([^>]+)>/gi)];
-        for (const match of matches) {
-          const caUsername = match[1];
-          const caEmail = match[2];
-          
-          if (caUsername !== authorDoc.username && !coAuthors.includes(caUsername)) {
-            // Find registered co-author
-            const coAuthorUser = await User.findOne({
-              $or: [{ username: caUsername }, { email: caEmail }],
-              role: "fellow"
-            });
-            if (coAuthorUser) {
-              coAuthors.push(caUsername);
-              coAuthorDocs.push(coAuthorUser);
-            }
-          }
-        }
-      }
-
-      // Increment values in DB
-      if (pointsAwarded > 0) {
-        // Author receives 100%
-        await User.updateOne({ _id: authorDoc._id }, { $inc: { score: pointsAwarded } });
-
-        // Co-authors receive 50%
-        const coAuthorPoints = Math.round(pointsAwarded * 0.5);
-        for (const caDoc of coAuthorAuthorDocs(coAuthorDocs)) {
-          await User.updateOne({ _id: caDoc._id }, { $inc: { score: coAuthorPoints } });
-          const coAuthorPrComment = `🤖 @${caDoc.username} awarded **+${coAuthorPoints} points** (50% co-author split) for contributing to PR #${prPayload.number}!`;
-          await postGitHubPRComment(installationId, owner, repoName, prPayload.number, coAuthorPrComment);
-        }
-
-        // Post success comment on PR
-        const successComment = `🤖 @${authorDoc.username} awarded **+${pointsAwarded} points** for completing a \`${activeDifficultyLabel}\` contribution! 🏆${coAuthors.length > 0 ? ` Co-authors awarded points: ${coAuthors.map(c => "@" + c).join(", ")}.` : ""}`;
-        await postGitHubPRComment(installationId, owner, repoName, prPayload.number, successComment);
-      } else if (activeDifficultyLabel === "unlabeled") {
-        // Lacking tags
-        const promptComment = `🤖 @${mergerUsername}: Please label this PR to award points to @${authorDoc.username}.`;
-        await postGitHubPRComment(installationId, owner, repoName, prPayload.number, promptComment);
-      }
-
-      await postDiscordAlert(
-        `🏆 **Pull Request Merged (${activeDifficultyLabel})**\nTrack: ${repoDoc.track}\nPR: [#${prPayload.number}](${prPayload.html_url}) by @${authorDoc.username}\nAwarded: **+${pointsAwarded} points** to developer.${effortNote}`,
-        "success"
-      );
-    }
-
-    // Save status to DB
-    await PullRequest.findOneAndUpdate(
-      { prId: String(prPayload.id) },
+    // Delegate to the shared scoring engine (used by both webhooks and backfill)
+    const result = await awardPointsForMergedPR(
       {
+        installationId,
+        owner,
+        repoName,
+        repoDoc,
+        prId: String(prPayload.id),
         prNumber: prPayload.number,
-        repository: repoDoc._id,
-        author: authorDoc._id,
         title: prPayload.title,
         htmlUrl: prPayload.html_url,
-        state: "merged",
-        difficultyLabel: activeDifficultyLabel,
-        pointsAwarded: pointsAwarded,
-        suspicious: isSuspicious,
-        mergedAt: new Date(prPayload.merged_at || Date.now()),
+        body: prPayload.body,
+        labels: prPayload.labels || [],
+        createdAt: prPayload.created_at,
+        mergedAt: prPayload.merged_at,
+        authorUsername: authorDoc.username,
+        mergerUsername,
+        authorDoc,
+        source: "webhook",
       },
-      { upsert: true }
+      { notify: true }
     );
+
+    console.log(`✅ PR #${prPayload.number} processed -> points: ${result.pointsAwarded}, suspicious: ${result.isSuspicious}`);
   }
 
   // 5. PR Labeled or Unlabeled (Post-Merge Changes)
@@ -294,13 +221,6 @@ async function handlePullRequestEvent(action: string, payload: any) {
       );
     }
   }
-}
-
-/**
- * Filter list of co-author documents
- */
-function coAuthorAuthorDocs(docs: any[]): any[] {
-  return docs;
 }
 
 /**
@@ -438,33 +358,6 @@ async function handlePullRequestReviewEvent(action: string, payload: any) {
 /**
  * UTILS & HELPERS
  */
-function inferTrackFromName(repoName: string): "AI" | "Full-Stack" | "DevOps" | "Security" | "Frontier" {
-  const norm = repoName.toLowerCase();
-  if (norm.includes("ai")) return "AI";
-  if (norm.includes("web") || norm.includes("stack") || norm.includes("backend") || norm.includes("frontend")) return "Full-Stack";
-  if (norm.includes("devops") || norm.includes("infra") || norm.includes("ci")) return "DevOps";
-  if (norm.includes("sec") || norm.includes("cyber") || norm.includes("scanner")) return "Security";
-  return "Frontier";
-}
-
-function getDifficultyFromLabels(labels: any[]): "soc-easy" | "soc-medium" | "soc-hard" | "unlabeled" {
-  for (const label of labels) {
-    const name = typeof label === "string" ? label : label.name;
-    if (name === "soc-easy") return "soc-easy";
-    if (name === "soc-medium") return "soc-medium";
-    if (name === "soc-hard") return "soc-hard";
-  }
-  return "unlabeled";
-}
-
-function getPointsForLabel(difficulty: "soc-easy" | "soc-medium" | "soc-hard" | "unlabeled"): number {
-  switch (difficulty) {
-    case "soc-easy": return 10;
-    case "soc-medium": return 30;
-    case "soc-hard": return 60;
-    default: return 0;
-  }
-}
 
 /**
  * Live BullMQ background worker mounting
