@@ -20,7 +20,7 @@
     "bullmq": "^6.2.0",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
-    "ioredis": "^5.11.1",
+    "ioredis": "^6.0.0",
     "ioredis-mock": "^8.13.1",
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^1.31.0",
