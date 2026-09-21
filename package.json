@@ -18,7 +18,7 @@
     "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-react": "^6.1.1",
     "bullmq": "^6.3.7",
-    "dotenv": "^17.2.3",
+    "dotenv": "^18.0.0",
     "express": "^4.21.2",
     "ioredis": "^6.0.0",
     "ioredis-mock": "^8.13.1",
