@@ -36,7 +36,7 @@
     "@types/node": "^22.20.3",
     "autoprefixer": "^10.6.1",
     "esbuild": "^0.28.2",
-    "mongodb-memory-server": "^11.2.0",
+    "mongodb-memory-server": "^11.3.0",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.13",
     "typescript": "~7.0.2",
