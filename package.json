@@ -24,7 +24,7 @@
     "ioredis-mock": "^8.13.1",
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^1.48.0",
-    "mongoose": "^9.10.1",
+    "mongoose": "^9.10.2",
     "motion": "^13.4.4",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
